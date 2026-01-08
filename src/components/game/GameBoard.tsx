@@ -55,7 +55,7 @@ export const GameBoard = () => {
           ROBO-D ROYALE
         </h1>
         <p className="text-muted-foreground mt-2 text-sm tracking-widest uppercase">
-          Deck Building Cyber Defense
+          Cooperative Deck Building Cyber Defense
         </p>
       </header>
 
