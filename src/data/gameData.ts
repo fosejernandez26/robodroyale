@@ -26,10 +26,20 @@ export const upgradeCards: Omit<Card, 'id'>[] = [
   { name: "Cyber Expert", cost: 6, effect: "Restore 4 health", type: "heal", value: 4 },
 ];
 
-export const threatTemplates: Omit<Threat, 'id'>[] = [
+export const threatTemplates: Omit<Threat, 'id' | 'cards'>[] = [
   { name: "Phishing Scam", damage: 2, maxDamage: 2 },
   { name: "Ransomware", damage: 4, maxDamage: 4 },
   { name: "DDoS Attack", damage: 3, maxDamage: 3 },
   { name: "Data Breach", damage: 5, maxDamage: 5 },
   { name: "Trojan Virus", damage: 3, maxDamage: 3 },
+];
+
+// Threat attack cards (hidden from player)
+export const threatAttackCards: Omit<Card, 'id'>[] = [
+  { name: "Malware Inject", type: "block", value: 1, effect: "Deal 1 damage" },
+  { name: "Brute Force", type: "block", value: 2, effect: "Deal 2 damage" },
+  { name: "SQL Injection", type: "block", value: 3, effect: "Deal 3 damage" },
+  { name: "Zero-Day Exploit", type: "block", value: 4, effect: "Deal 4 damage" },
+  { name: "Backdoor Access", type: "heal", value: 2, effect: "Heal 2 threat HP" },
+  { name: "Mutation", type: "heal", value: 1, effect: "Heal 1 threat HP" },
 ];

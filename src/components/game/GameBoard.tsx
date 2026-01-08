@@ -1,24 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useGameState } from '@/hooks/useGameState';
 import { GameCard } from './GameCard';
 import { ThreatCard } from './ThreatCard';
 import { StatsPanel } from './StatsPanel';
 import { GameOverModal } from './GameOverModal';
+import { EffectAnimation, EffectType } from './EffectAnimation';
+import { DamageAnimation } from './DamageAnimation';
+import { CardPlayAnimation } from './CardPlayAnimation';
+import { TurnIndicator } from './TurnIndicator';
 import { Play, ShoppingCart, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card } from '@/types/game';
 
 export const GameBoard = () => {
-  const { gameState, playCard, buyUpgrade, endTurn, resetGame, upgradeCards } = useGameState();
+  const { 
+    gameState, 
+    playCard, 
+    buyUpgrade, 
+    endTurn, 
+    executeThreatTurn,
+    startPlayerTurn,
+    resetGame, 
+    upgradeCards 
+  } = useGameState();
+  
   const [selectedThreat, setSelectedThreat] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [activeEffect, setActiveEffect] = useState<EffectType | null>(null);
+  const [damageAnimation, setDamageAnimation] = useState<number | null>(null);
+  const [playedCard, setPlayedCard] = useState<{ card: Card; isPlayer: boolean } | null>(null);
 
   const showNotification = (message: string) => {
     setNotification(message);
     setTimeout(() => setNotification(null), 2000);
   };
 
+  const showEffect = (type: EffectType) => {
+    setActiveEffect(type);
+  };
+
   const handleCardClick = (card: Card) => {
+    if (!gameState.isPlayerTurn) {
+      showNotification("Wait for your turn!");
+      return;
+    }
+
+    if (gameState.cardPlayedThisTurn) {
+      showNotification("You can only play 1 card per turn!");
+      return;
+    }
+
     if (card.type === 'block') {
       if (gameState.threats.length === 0) {
         showNotification("No threats to block!");
@@ -30,9 +61,17 @@ export const GameBoard = () => {
       }
       playCard(card.id, selectedThreat);
       setSelectedThreat(null);
+      setPlayedCard({ card, isPlayer: true });
+      showEffect('block');
       showNotification(`Blocked with ${card.name}!`);
+    } else if (card.type === 'heal') {
+      playCard(card.id);
+      setPlayedCard({ card, isPlayer: true });
+      showEffect('heal');
+      showNotification(`Used ${card.name}!`);
     } else {
       playCard(card.id);
+      setPlayedCard({ card, isPlayer: true });
       showNotification(`Used ${card.name}!`);
     }
   };
@@ -47,8 +86,40 @@ export const GameBoard = () => {
     }
   };
 
+  const handleEndTurn = useCallback(() => {
+    if (!gameState.isPlayerTurn || gameState.gameOver) return;
+
+    // End player turn and apply threat passive damage
+    const { threatDamage } = endTurn();
+    
+    if (threatDamage > 0) {
+      setDamageAnimation(threatDamage);
+      showEffect('damage');
+    }
+
+    // Execute threat AI turn after a delay
+    setTimeout(() => {
+      if (!gameState.gameOver) {
+        const result = executeThreatTurn();
+        if (result) {
+          setPlayedCard({ card: result.threatCard, isPlayer: false });
+          if (result.damage > 0) {
+            setTimeout(() => {
+              showEffect('attack');
+            }, 500);
+          }
+        }
+        
+        // Return to player turn after threat action
+        setTimeout(() => {
+          startPlayerTurn();
+        }, 1500);
+      }
+    }, 1500);
+  }, [gameState.isPlayerTurn, gameState.gameOver, endTurn, executeThreatTurn, startPlayerTurn]);
+
   return (
-    <div className="min-h-screen bg-background cyber-grid scanline p-4 md:p-6">
+    <div className="min-h-screen bg-background cyber-grid scanline p-4 md:p-6 pb-20">
       {/* Header */}
       <header className="text-center mb-8">
         <h1 className="font-blox text-5xl md:text-7xl text-primary text-glow-strong animate-flicker tracking-wider">
@@ -76,6 +147,31 @@ export const GameBoard = () => {
         </div>
       )}
 
+      {/* Effect Animations */}
+      {activeEffect && (
+        <EffectAnimation 
+          type={activeEffect} 
+          onComplete={() => setActiveEffect(null)} 
+        />
+      )}
+
+      {/* Damage Animation */}
+      {damageAnimation !== null && (
+        <DamageAnimation 
+          damage={damageAnimation} 
+          onComplete={() => setDamageAnimation(null)} 
+        />
+      )}
+
+      {/* Card Play Animation */}
+      {playedCard && (
+        <CardPlayAnimation 
+          card={playedCard.card}
+          isPlayer={playedCard.isPlayer}
+          onComplete={() => setPlayedCard(null)}
+        />
+      )}
+
       {/* Main Game Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
         {/* Hand Panel */}
@@ -87,23 +183,39 @@ export const GameBoard = () => {
               {gameState.hand.length} cards
             </span>
           </div>
+          {gameState.cardPlayedThisTurn && gameState.isPlayerTurn && (
+            <div className="mb-3 text-center py-2 bg-muted/30 rounded-lg border border-muted">
+              <span className="text-sm text-muted-foreground">Card played! End your turn.</span>
+            </div>
+          )}
           <div className="space-y-3">
             {gameState.hand.map(card => (
-              <GameCard 
-                key={card.id} 
-                card={card} 
-                onClick={() => handleCardClick(card)}
-              />
+              <div 
+                key={card.id}
+                className={cn(
+                  "transition-all duration-300",
+                  !gameState.isPlayerTurn && "opacity-50 pointer-events-none",
+                  gameState.cardPlayedThisTurn && "opacity-50"
+                )}
+              >
+                <GameCard 
+                  card={card} 
+                  onClick={() => handleCardClick(card)}
+                  disabled={!gameState.isPlayerTurn || gameState.cardPlayedThisTurn}
+                />
+              </div>
             ))}
           </div>
           <button
-            onClick={endTurn}
+            onClick={handleEndTurn}
+            disabled={!gameState.isPlayerTurn}
             className={cn(
               "w-full mt-4 py-3 rounded-lg font-bold transition-all duration-300",
               "bg-primary/20 border border-primary text-primary",
               "hover:bg-primary hover:text-primary-foreground",
               "hover:shadow-[0_0_20px_hsl(120_100%_50%/0.5)]",
-              "flex items-center justify-center gap-2"
+              "flex items-center justify-center gap-2",
+              "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
           >
             <Play className="w-5 h-5" />
@@ -117,7 +229,7 @@ export const GameBoard = () => {
             <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
             <h2 className="font-bold text-lg text-foreground">Active Threats</h2>
             <span className="text-xs text-destructive ml-auto">
-              {gameState.threats.length} threats
+              {gameState.threats.length}/3 threats
             </span>
           </div>
           {gameState.threats.length === 0 ? (
@@ -170,11 +282,14 @@ export const GameBoard = () => {
       <div className="mt-8 bg-card/30 neon-border rounded-xl p-4 text-center">
         <h3 className="font-bold text-primary mb-2">How to Play</h3>
         <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
-          Play cards from your hand to block threats, heal your system, or earn points. 
+          Play 1 card per turn to block threats, heal your system, or earn points. 
           Buy upgrades to strengthen your deck. Defeat 10 threats to win. 
-          If your system health reaches 0, you lose!
+          Every 5 threats, a powerful boss appears! If your system health reaches 0, you lose!
         </p>
       </div>
+
+      {/* Turn Indicator */}
+      <TurnIndicator isPlayerTurn={gameState.isPlayerTurn} />
 
       {/* Game Over Modal */}
       {gameState.gameOver && (
