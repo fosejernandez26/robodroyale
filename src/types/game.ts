@@ -12,6 +12,9 @@ export interface Threat {
   name: string;
   damage: number;
   maxDamage: number;
+  isBoss?: boolean;
+  multiplier?: number;
+  cards: Card[]; // Hidden cards for threat AI
 }
 
 export interface GameState {
@@ -26,4 +29,6 @@ export interface GameState {
   victory: boolean;
   threatsDefeated: number;
   threatsToWin: number;
+  isPlayerTurn: boolean;
+  cardPlayedThisTurn: boolean;
 }

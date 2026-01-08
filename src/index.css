@@ -166,4 +166,127 @@
     95% { opacity: 0.9; }
     96% { opacity: 1; }
   }
+
+  /* Card effect animations */
+  .animate-effect-pop {
+    animation: effect-pop 1s ease-out forwards;
+  }
+
+  @keyframes effect-pop {
+    0% {
+      transform: scale(0.5);
+      opacity: 0;
+    }
+    30% {
+      transform: scale(1.3);
+      opacity: 1;
+    }
+    60% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1.5);
+      opacity: 0;
+    }
+  }
+
+  /* Card play animation */
+  .animate-card-play {
+    animation: card-play 0.8s ease-out forwards;
+  }
+
+  @keyframes card-play {
+    0% {
+      transform: scale(0.8) translateY(50px);
+      opacity: 0;
+    }
+    30% {
+      transform: scale(1.1) translateY(-10px);
+      opacity: 1;
+    }
+    60% {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(0.9) translateY(-20px);
+      opacity: 0;
+    }
+  }
+
+  /* Damage flash animation */
+  .animate-flash {
+    animation: flash 0.3s ease-out forwards;
+  }
+
+  @keyframes flash {
+    0% { opacity: 0; }
+    50% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* Damage number animation */
+  .animate-damage-number {
+    animation: damage-number 1.5s ease-out forwards;
+  }
+
+  @keyframes damage-number {
+    0% {
+      transform: scale(0.5) translateY(0);
+      opacity: 0;
+    }
+    20% {
+      transform: scale(1.5) translateY(-20px);
+      opacity: 1;
+    }
+    80% {
+      transform: scale(1.2) translateY(-40px);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1) translateY(-80px);
+      opacity: 0;
+    }
+  }
+
+  /* Crack effect */
+  .animate-crack {
+    animation: crack 1.5s ease-out forwards;
+  }
+
+  @keyframes crack {
+    0% {
+      stroke-dasharray: 0 1000;
+      opacity: 0;
+    }
+    30% {
+      stroke-dasharray: 500 1000;
+      opacity: 1;
+    }
+    100% {
+      stroke-dasharray: 1000 1000;
+      opacity: 0;
+    }
+  }
+
+  /* Card use animation */
+  .animate-card-use {
+    animation: card-use 0.4s ease-out forwards;
+  }
+
+  @keyframes card-use {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.1) translateY(-10px);
+      opacity: 0.8;
+    }
+    100% {
+      transform: scale(0) translateY(-50px);
+      opacity: 0;
+    }
+  }
 }
