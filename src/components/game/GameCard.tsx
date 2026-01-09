@@ -1,68 +1,80 @@
-import { Card } from '@/types/game';
-import { Shield, Heart, Coins } from 'lucide-react';
+import { Card, strengthColors } from '@/types/game';
+import { Shield, Heart, Sword } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface GameCardProps {
   card: Card;
   onClick?: () => void;
   disabled?: boolean;
-  isUpgrade?: boolean;
-  canAfford?: boolean;
+  isSelected?: boolean;
+  isReward?: boolean;
 }
 
 const typeIcons = {
   block: Shield,
   heal: Heart,
-  points: Coins,
+  damage: Sword,
 };
 
-const typeColors = {
-  block: 'from-primary/20 to-primary/5',
-  heal: 'from-emerald-500/20 to-emerald-500/5',
-  points: 'from-yellow-500/20 to-yellow-500/5',
-};
-
-export const GameCard = ({ card, onClick, disabled, isUpgrade, canAfford = true }: GameCardProps) => {
+export const GameCard = ({ card, onClick, disabled, isSelected, isReward }: GameCardProps) => {
   const Icon = typeIcons[card.type];
+  const tierStyle = strengthColors[card.tier];
 
   return (
     <button
       onClick={onClick}
-      disabled={disabled || (isUpgrade && !canAfford)}
+      disabled={disabled}
       className={cn(
         "relative w-full p-4 rounded-lg transition-all duration-300",
-        "bg-gradient-to-b border neon-border",
-        typeColors[card.type],
-        "hover:scale-105 hover:shadow-[0_0_25px_hsl(120_100%_50%/0.4)]",
+        "bg-gradient-to-b border",
+        tierStyle.bg,
+        tierStyle.border,
+        "hover:scale-105",
         "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100",
-        "group"
+        "group",
+        isSelected && "ring-2 ring-primary scale-105",
+        isReward && "hover:ring-2 hover:ring-primary"
       )}
+      style={{
+        boxShadow: isSelected ? tierStyle.glow : undefined,
+      }}
     >
       <div className="flex items-start gap-3">
-        <div className="p-2 rounded-md bg-card/50 neon-border">
-          <Icon className="w-5 h-5 text-primary" />
+        <div className={cn(
+          "p-2 rounded-md border",
+          tierStyle.bg,
+          tierStyle.border
+        )}>
+          <Icon className={cn("w-5 h-5", tierStyle.text)} />
         </div>
         <div className="flex-1 text-left">
-          <h3 className="font-semibold text-foreground text-sm leading-tight mb-1 group-hover:text-glow">
+          <h3 className={cn(
+            "font-semibold text-sm leading-tight mb-1",
+            tierStyle.text
+          )}>
             {card.name}
           </h3>
           <p className="text-xs text-muted-foreground">{card.effect}</p>
-          {isUpgrade && card.cost && (
-            <div className="mt-2 flex items-center gap-1">
-              <Coins className="w-3 h-3 text-yellow-500" />
-              <span className={cn(
-                "text-xs font-bold",
-                canAfford ? "text-yellow-500" : "text-destructive"
-              )}>
-                {card.cost} pts
-              </span>
-            </div>
-          )}
+          {/* Tier indicator */}
+          <div className={cn(
+            "mt-2 text-xs font-medium uppercase tracking-wider",
+            tierStyle.text
+          )}>
+            {card.tier.replace('-', ' ')}
+          </div>
         </div>
-        <div className="absolute top-2 right-2 text-lg font-bold text-primary/60">
-          +{card.value}
+        <div className={cn(
+          "absolute top-2 right-2 text-lg font-bold",
+          tierStyle.text
+        )}>
+          {card.type === 'block' ? '🛡️' : card.type === 'heal' ? '❤️' : '⚔️'} {card.value}
         </div>
       </div>
+      {isSelected && (
+        <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full font-bold animate-pulse">
+          SELECTED
+        </div>
+      )}
     </button>
   );
 };

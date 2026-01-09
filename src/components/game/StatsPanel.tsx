@@ -1,10 +1,11 @@
-import { Coins, Heart, Cpu, Trophy, Crosshair } from 'lucide-react';
+import { Coins, Heart, Shield, Crosshair, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface StatsPanelProps {
   points: number;
   health: number;
   maxHealth: number;
+  shield: number;
   turn: number;
   threatsDefeated: number;
   threatsToWin: number;
@@ -14,6 +15,7 @@ export const StatsPanel = ({
   points, 
   health, 
   maxHealth, 
+  shield,
   turn, 
   threatsDefeated, 
   threatsToWin 
@@ -41,7 +43,7 @@ export const StatsPanel = ({
             "w-4 h-4",
             healthPercent > 50 ? "text-primary" : healthPercent > 25 ? "text-yellow-500" : "text-destructive"
           )} />
-          <span className="text-xs text-muted-foreground">System Health</span>
+          <span className="text-xs text-muted-foreground">Health</span>
         </div>
         <div className="h-2 bg-muted rounded-full overflow-hidden">
           <div 
@@ -57,14 +59,14 @@ export const StatsPanel = ({
         </div>
       </div>
 
-      {/* Turn */}
+      {/* Shield */}
       <div className="bg-card/50 neon-border rounded-lg p-3 flex items-center gap-3">
-        <div className="p-2 bg-primary/20 rounded-lg">
-          <Cpu className="w-5 h-5 text-primary" />
+        <div className="p-2 bg-blue-500/20 rounded-lg">
+          <Shield className="w-5 h-5 text-blue-400" />
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Turn</div>
-          <div className="text-lg font-bold text-foreground">{turn}</div>
+          <div className="text-xs text-muted-foreground">Shield</div>
+          <div className="text-lg font-bold text-blue-400">{shield}</div>
         </div>
       </div>
 
@@ -83,7 +85,7 @@ export const StatsPanel = ({
       <div className="bg-card/50 neon-border rounded-lg p-3">
         <div className="flex items-center gap-2 mb-2">
           <Trophy className="w-4 h-4 text-primary" />
-          <span className="text-xs text-muted-foreground">Victory Progress</span>
+          <span className="text-xs text-muted-foreground">Progress</span>
         </div>
         <div className="h-2 bg-muted rounded-full overflow-hidden">
           <div 
