@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
-import { GameState, Card, Threat } from '@/types/game';
-import { starterCards, upgradeCards, threatTemplates, threatAttackCards } from '@/data/gameData';
+import { GameState, Card, Threat, StrengthTier, EnemyType, ThreatAbility, calculatePlayerPower, getRelativeTier } from '@/types/game';
+import { starterCards, threatAttackCards, enemyNames, getRandomTier, getCardsFromPool } from '@/data/gameData';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -9,30 +9,99 @@ const createCard = (template: Omit<Card, 'id'>): Card => ({
   id: generateId(),
 });
 
-const createThreatCards = (): Card[] => {
-  // Give each threat 3-5 random attack cards
+const createThreatCards = (tier: StrengthTier): Card[] => {
   const numCards = Math.floor(Math.random() * 3) + 3;
   const cards: Card[] = [];
+  // Filter threat cards by tier similarity
+  const validCards = threatAttackCards.filter(c => {
+    const tierOrder: StrengthTier[] = ['very-weak', 'weak', 'medium', 'strong', 'very-strong'];
+    const tierIndex = tierOrder.indexOf(tier);
+    const cardTierIndex = tierOrder.indexOf(c.tier);
+    return Math.abs(tierIndex - cardTierIndex) <= 1;
+  });
+  
   for (let i = 0; i < numCards; i++) {
-    const template = threatAttackCards[Math.floor(Math.random() * threatAttackCards.length)];
+    const template = validCards.length > 0 
+      ? validCards[Math.floor(Math.random() * validCards.length)]
+      : threatAttackCards[Math.floor(Math.random() * threatAttackCards.length)];
     cards.push(createCard(template));
   }
   return cards;
 };
 
-const createThreat = (template: Omit<Threat, 'id' | 'cards'>, isBoss: boolean = false): Threat => {
-  const multiplier = isBoss ? 1.5 + Math.random() * 1.5 : 1; // 1.5x to 3x for bosses
-  const damage = Math.round(template.damage * multiplier);
-  const maxDamage = Math.round(template.maxDamage * multiplier);
+// Calculate threat stats based on tier
+const getThreatStats = (tier: StrengthTier): { health: number; damage: number; points: number } => {
+  const stats: Record<StrengthTier, { health: number; damage: number; points: number }> = {
+    'very-weak': { health: 3, damage: 1, points: 1 },
+    'weak': { health: 5, damage: 2, points: 2 },
+    'medium': { health: 8, damage: 3, points: 4 },
+    'strong': { health: 12, damage: 4, points: 6 },
+    'very-strong': { health: 18, damage: 5, points: 10 },
+  };
+  return stats[tier];
+};
+
+const getRandomAbility = (): ThreatAbility => {
+  const random = Math.random();
+  if (random < 0.5) return 'none';
+  if (random < 0.7) return 'steal-points';
+  if (random < 0.85) return 'damage-over-time';
+  return 'heal-self';
+};
+
+const createThreat = (
+  playerPower: number, 
+  isBoss: boolean = false, 
+  isMegaBoss: boolean = false
+): Threat => {
+  // Generate enemy type
+  const enemyTypes: EnemyType[] = ['hacker', 'virus', 'trojan'];
+  const enemyType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+  
+  // Generate tier
+  let tier = getRandomTier();
+  
+  // Bosses and mega-bosses are always strong or very-strong
+  if (isMegaBoss) {
+    tier = 'very-strong';
+  } else if (isBoss) {
+    tier = Math.random() > 0.3 ? 'very-strong' : 'strong';
+  }
+  
+  // Get base stats
+  const baseStats = getThreatStats(tier);
+  
+  // Apply multiplier for bosses
+  const multiplier = isMegaBoss ? 2 + Math.random() * 1.5 : isBoss ? 1.5 + Math.random() * 1 : 1;
+  
+  const health = Math.round(baseStats.health * multiplier);
+  const damage = Math.round(baseStats.damage * multiplier);
+  const pointsReward = Math.round(baseStats.points * multiplier);
+  
+  // Generate name
+  const prefix = enemyNames[enemyType][Math.floor(Math.random() * enemyNames[enemyType].length)];
+  const suffix = isMegaBoss ? 'Overlord' : isBoss ? 'Boss' : enemyType.charAt(0).toUpperCase() + enemyType.slice(1);
+  
+  // Get ability (bosses always have abilities)
+  let ability: ThreatAbility = (isBoss || isMegaBoss) ? getRandomAbility() : (Math.random() > 0.7 ? getRandomAbility() : 'none');
+  if (ability === 'none' && (isBoss || isMegaBoss)) {
+    ability = 'damage-over-time'; // Bosses must have an ability
+  }
   
   return {
-    ...template,
     id: generateId(),
+    name: `${prefix} ${suffix}`,
+    health,
+    maxHealth: health,
     damage,
-    maxDamage,
     isBoss,
-    multiplier: isBoss ? multiplier : undefined,
-    cards: createThreatCards(),
+    isMegaBoss,
+    multiplier: (isBoss || isMegaBoss) ? multiplier : undefined,
+    cards: createThreatCards(tier),
+    tier,
+    enemyType,
+    ability,
+    pointsReward,
   };
 };
 
@@ -51,61 +120,130 @@ export const useGameState = () => {
     const shuffledDeck = shuffleArray(deck);
     const hand = shuffledDeck.slice(0, 5);
     const remainingDeck = shuffledDeck.slice(5);
+    const playerPower = calculatePlayerPower(hand);
+    
+    // Start with 1-2 threats
+    const initialThreats = [
+      createThreat(playerPower),
+      Math.random() > 0.5 ? createThreat(playerPower) : null,
+    ].filter(Boolean) as Threat[];
     
     return {
-      points: 5,
-      systemHealth: 20,
-      maxHealth: 20,
+      points: 0,
+      systemHealth: 30,
+      maxHealth: 30,
+      shield: 0,
       deck: remainingDeck,
       hand,
-      threats: [createThreat(threatTemplates[Math.floor(Math.random() * threatTemplates.length)])],
+      threats: initialThreats,
       turn: 1,
       gameOver: false,
       victory: false,
       threatsDefeated: 0,
-      threatsToWin: 10,
+      threatsToWin: 20,
       isPlayerTurn: true,
-      cardPlayedThisTurn: false,
+      selectedCard: null,
+      playerStats: {
+        totalEnemiesDefeated: 0,
+        currentWinStreak: 0,
+        highestPoints: 0,
+        bossesDefeated: 0,
+      },
+      showCardSelection: false,
+      cardChoices: [],
     };
   };
 
   const [gameState, setGameState] = useState<GameState>(initializeGame);
 
-  const playCard = useCallback((cardId: string, threatId?: string): { card: Card; type: 'block' | 'heal' | 'points' } | null => {
-    let playedCard: Card | null = null;
-    let cardType: 'block' | 'heal' | 'points' = 'points';
+  // Calculate player power for relative tier display
+  const getPlayerPower = useCallback(() => {
+    return calculatePlayerPower(gameState.hand);
+  }, [gameState.hand]);
+
+  // Select a card from hand
+  const selectCard = useCallback((cardId: string | null) => {
+    setGameState(prev => {
+      if (cardId === null) {
+        return { ...prev, selectedCard: null };
+      }
+      const card = prev.hand.find(c => c.id === cardId) || null;
+      return { ...prev, selectedCard: card };
+    });
+  }, []);
+
+  // Play selected card on target
+  const playCardOnTarget = useCallback((threatId?: string): { 
+    card: Card; 
+    type: 'block' | 'heal' | 'damage';
+    defeatedThreat?: Threat;
+    pointsEarned?: number;
+  } | null => {
+    let result: { 
+      card: Card; 
+      type: 'block' | 'heal' | 'damage';
+      defeatedThreat?: Threat;
+      pointsEarned?: number;
+    } | null = null;
 
     setGameState(prev => {
-      if (prev.gameOver || !prev.isPlayerTurn || prev.cardPlayedThisTurn) return prev;
+      if (prev.gameOver || !prev.isPlayerTurn || !prev.selectedCard) return prev;
 
-      const cardIndex = prev.hand.findIndex(c => c.id === cardId);
-      if (cardIndex === -1) return prev;
-
-      const card = prev.hand[cardIndex];
-      playedCard = card;
-      cardType = card.type;
-      const newHand = prev.hand.filter(c => c.id !== cardId);
+      const card = prev.selectedCard;
+      const newHand = prev.hand.filter(c => c.id !== card.id);
       let newThreats = [...prev.threats];
       let newHealth = prev.systemHealth;
       let newPoints = prev.points;
+      let newShield = prev.shield;
       let newThreatsDefeated = prev.threatsDefeated;
+      let defeatedThreat: Threat | undefined;
+      let pointsEarned = 0;
+      let newStats = { ...prev.playerStats };
+      let showCardSelection = false;
+      let cardChoices: Card[] = [];
 
-      if (card.type === 'block' && threatId) {
+      if (card.type === 'damage' && threatId) {
+        // Damage card - attack enemy
         const threatIndex = newThreats.findIndex(t => t.id === threatId);
         if (threatIndex !== -1) {
-          newThreats[threatIndex] = {
-            ...newThreats[threatIndex],
-            damage: Math.max(0, newThreats[threatIndex].damage - card.value),
-          };
-          if (newThreats[threatIndex].damage <= 0) {
+          const threat = newThreats[threatIndex];
+          const newThreatHealth = threat.health - card.value;
+          
+          if (newThreatHealth <= 0) {
+            // Enemy defeated!
+            defeatedThreat = threat;
+            pointsEarned = threat.pointsReward;
+            newPoints += pointsEarned;
             newThreats = newThreats.filter(t => t.id !== threatId);
             newThreatsDefeated++;
+            newStats.totalEnemiesDefeated++;
+            newStats.currentWinStreak++;
+            if (newPoints > newStats.highestPoints) {
+              newStats.highestPoints = newPoints;
+            }
+            if (threat.isBoss || threat.isMegaBoss) {
+              newStats.bossesDefeated++;
+            }
+            
+            // Generate card choices for player
+            showCardSelection = true;
+            cardChoices = getCardsFromPool(3).map(createCard);
+          } else {
+            newThreats[threatIndex] = {
+              ...threat,
+              health: newThreatHealth,
+            };
           }
         }
+        result = { card, type: 'damage', defeatedThreat, pointsEarned };
+      } else if (card.type === 'block') {
+        // Block card - add shield
+        newShield += card.value;
+        result = { card, type: 'block' };
       } else if (card.type === 'heal') {
+        // Heal card - restore health
         newHealth = Math.min(prev.maxHealth, prev.systemHealth + card.value);
-      } else if (card.type === 'points') {
-        newPoints += card.value;
+        result = { card, type: 'heal' };
       }
 
       // Check victory
@@ -116,83 +254,123 @@ export const useGameState = () => {
         hand: newHand,
         threats: newThreats,
         systemHealth: newHealth,
+        shield: newShield,
         points: newPoints,
         threatsDefeated: newThreatsDefeated,
         victory,
         gameOver: victory,
-        cardPlayedThisTurn: true,
+        selectedCard: null,
+        isPlayerTurn: false, // Turn ends after playing a card
+        playerStats: newStats,
+        showCardSelection,
+        cardChoices,
       };
     });
 
-    return playedCard ? { card: playedCard, type: cardType } : null;
+    return result;
   }, []);
 
-  const buyUpgrade = useCallback((upgradeIndex: number) => {
+  // Choose a card from the reward selection
+  const chooseRewardCard = useCallback((cardId: string) => {
     setGameState(prev => {
-      if (prev.gameOver) return prev;
-
-      const upgrade = upgradeCards[upgradeIndex];
-      if (!upgrade.cost || prev.points < upgrade.cost) return prev;
-
+      const chosenCard = prev.cardChoices.find(c => c.id === cardId);
+      if (!chosenCard) return prev;
+      
       return {
         ...prev,
-        points: prev.points - upgrade.cost,
-        deck: [...prev.deck, createCard(upgrade)],
+        deck: [...prev.deck, chosenCard],
+        showCardSelection: false,
+        cardChoices: [],
       };
     });
   }, []);
 
-  const executeThreatTurn = useCallback((): { threatCard: Card; damage: number } | null => {
-    let result: { threatCard: Card; damage: number } | null = null;
+  // Skip card reward
+  const skipCardReward = useCallback(() => {
+    setGameState(prev => ({
+      ...prev,
+      showCardSelection: false,
+      cardChoices: [],
+    }));
+  }, []);
+
+  // Execute threat turn (called after player ends turn)
+  const executeThreatTurn = useCallback((): { 
+    threatCard?: Card; 
+    damage: number;
+    ability?: ThreatAbility;
+    pointsStolen?: number;
+  } => {
+    let result: { threatCard?: Card; damage: number; ability?: ThreatAbility; pointsStolen?: number } = { damage: 0 };
 
     setGameState(prev => {
       if (prev.gameOver || prev.threats.length === 0) {
         return prev;
       }
 
-      // Random threat attacks with a random card
-      const attackingThreat = prev.threats[Math.floor(Math.random() * prev.threats.length)];
-      if (attackingThreat.cards.length === 0) {
-        return prev;
-      }
-
-      const threatCard = attackingThreat.cards[Math.floor(Math.random() * attackingThreat.cards.length)];
       let newHealth = prev.systemHealth;
+      let newShield = prev.shield;
       let newThreats = [...prev.threats];
+      let newPoints = prev.points;
+      let totalDamage = 0;
+      let pointsStolen = 0;
 
-      if (threatCard.type === 'block') {
-        // Attack card - deal damage to player
-        newHealth -= threatCard.value;
-        result = { threatCard, damage: threatCard.value };
-      } else if (threatCard.type === 'heal') {
-        // Heal card - heal the threat
-        const threatIndex = newThreats.findIndex(t => t.id === attackingThreat.id);
-        if (threatIndex !== -1) {
-          newThreats[threatIndex] = {
-            ...newThreats[threatIndex],
-            damage: Math.min(
-              newThreats[threatIndex].maxDamage,
-              newThreats[threatIndex].damage + threatCard.value
-            ),
+      // Each threat attacks
+      for (let i = 0; i < newThreats.length; i++) {
+        const threat = newThreats[i];
+        let damage = threat.damage;
+
+        // Apply ability effects
+        if (threat.ability === 'damage-over-time') {
+          damage += 1;
+        }
+        if (threat.ability === 'steal-points') {
+          const stolen = Math.min(2, newPoints);
+          newPoints -= stolen;
+          pointsStolen += stolen;
+        }
+        if (threat.ability === 'heal-self') {
+          newThreats[i] = {
+            ...threat,
+            health: Math.min(threat.maxHealth, threat.health + 1),
           };
         }
-        result = { threatCard, damage: 0 };
+
+        // Apply damage (shield absorbs first)
+        if (newShield > 0) {
+          const shieldAbsorb = Math.min(newShield, damage);
+          newShield -= shieldAbsorb;
+          damage -= shieldAbsorb;
+        }
+        
+        totalDamage += damage;
+        newHealth -= damage;
       }
+
+      result = { damage: totalDamage, pointsStolen: pointsStolen > 0 ? pointsStolen : undefined };
 
       // Check game over
       if (newHealth <= 0) {
         return {
           ...prev,
           systemHealth: 0,
+          shield: 0,
+          points: newPoints,
           threats: newThreats,
           gameOver: true,
           victory: false,
+          playerStats: {
+            ...prev.playerStats,
+            currentWinStreak: 0, // Reset streak on loss
+          },
         };
       }
 
       return {
         ...prev,
         systemHealth: newHealth,
+        shield: newShield,
+        points: newPoints,
         threats: newThreats,
       };
     });
@@ -200,42 +378,23 @@ export const useGameState = () => {
     return result;
   }, []);
 
-  const endTurn = useCallback((): { threatDamage: number } => {
-    let totalDamage = 0;
-
+  // Start new turn (spawn threats if needed, draw cards)
+  const startNewTurn = useCallback(() => {
     setGameState(prev => {
       if (prev.gameOver) return prev;
 
-      // Apply threat damage
-      let newHealth = prev.systemHealth;
-      prev.threats.forEach(threat => {
-        newHealth -= threat.damage;
-        totalDamage += threat.damage;
-      });
-
-      // Check game over
-      if (newHealth <= 0) {
-        return {
-          ...prev,
-          systemHealth: 0,
-          gameOver: true,
-          victory: false,
-          isPlayerTurn: false,
-        };
-      }
-
-      // Determine if boss should spawn (every 5 threats)
-      const newThreatsDefeated = prev.threatsDefeated;
-      const shouldSpawnBoss = (newThreatsDefeated + 1) % 5 === 0 && newThreatsDefeated > 0;
-
-      // Only spawn new threat if under 3 threats
+      const playerPower = calculatePlayerPower(prev.hand);
+      
+      // Determine if boss should spawn
+      const isMegaBoss = (prev.threatsDefeated + 1) % 10 === 0 && prev.threatsDefeated > 0;
+      const isBoss = !isMegaBoss && (prev.threatsDefeated + 1) % 5 === 0 && prev.threatsDefeated > 0;
+      
+      // Spawn new threats if under 3
       let newThreats = [...prev.threats];
-      if (newThreats.length < 3) {
-        const newThreat = createThreat(
-          threatTemplates[Math.floor(Math.random() * threatTemplates.length)],
-          shouldSpawnBoss
-        );
-        newThreats = [...newThreats, newThreat];
+      while (newThreats.length < 3) {
+        const shouldBeBoss = isMegaBoss && newThreats.length === prev.threats.length;
+        const shouldBeRegularBoss = isBoss && newThreats.length === prev.threats.length;
+        newThreats.push(createThreat(playerPower, shouldBeRegularBoss, shouldBeBoss));
       }
 
       // Draw new hand
@@ -246,25 +405,15 @@ export const useGameState = () => {
 
       return {
         ...prev,
-        systemHealth: newHealth,
         deck: newDeck,
         hand: newHand,
         threats: newThreats,
         turn: prev.turn + 1,
-        isPlayerTurn: false,
-        cardPlayedThisTurn: false,
+        isPlayerTurn: true,
+        selectedCard: null,
+        shield: 0, // Shield resets each turn
       };
     });
-
-    return { threatDamage: totalDamage };
-  }, []);
-
-  const startPlayerTurn = useCallback(() => {
-    setGameState(prev => ({
-      ...prev,
-      isPlayerTurn: true,
-      cardPlayedThisTurn: false,
-    }));
   }, []);
 
   const resetGame = useCallback(() => {
@@ -273,12 +422,13 @@ export const useGameState = () => {
 
   return {
     gameState,
-    playCard,
-    buyUpgrade,
-    endTurn,
+    selectCard,
+    playCardOnTarget,
     executeThreatTurn,
-    startPlayerTurn,
+    startNewTurn,
+    chooseRewardCard,
+    skipCardReward,
     resetGame,
-    upgradeCards,
+    getPlayerPower,
   };
 };
