@@ -116,12 +116,10 @@ export const GameBoard = () => {
 
       if (result.defeatedThreat) {
         showNotification(`💀 ${result.defeatedThreat.name} defeated! +${result.pointsEarned} points!`);
+        // Card selection modal will show - enemy turn happens after selection
       } else {
         showNotification(`⚔️ Dealt ${result.card.value} damage!`);
-      }
-      
-      // Trigger enemy turn after animation (unless showing card selection)
-      if (!result.defeatedThreat) {
+        // No defeat - trigger enemy turn after animation
         setTimeout(() => {
           handleEnemyTurn();
         }, 800);
@@ -139,6 +137,7 @@ export const GameBoard = () => {
       setDamageAnimation(result.damage);
       showEffect('damage');
       triggerScreenShake();
+      showNotification(`💥 Enemies dealt ${result.damage} damage!`);
     }
     
     if (result.pointsStolen && result.pointsStolen > 0) {
@@ -155,15 +154,41 @@ export const GameBoard = () => {
   const handleCardRewardSelect = (cardId: string) => {
     chooseRewardCard(cardId);
     showNotification("Card added to deck!");
+    // Delay to allow state to update before triggering enemy turn
     setTimeout(() => {
-      handleEnemyTurn();
+      const result = executeThreatTurn();
+      if (result.damage > 0) {
+        setDamageAnimation(result.damage);
+        showEffect('damage');
+        triggerScreenShake();
+        showNotification(`💥 Enemies dealt ${result.damage} damage!`);
+      }
+      if (result.pointsStolen && result.pointsStolen > 0) {
+        showNotification(`🔓 Enemy stole ${result.pointsStolen} points!`);
+      }
+      setTimeout(() => {
+        startNewTurn();
+      }, 1200);
     }, 500);
   };
 
   const handleSkipReward = () => {
     skipCardReward();
+    // Delay to allow state to update before triggering enemy turn
     setTimeout(() => {
-      handleEnemyTurn();
+      const result = executeThreatTurn();
+      if (result.damage > 0) {
+        setDamageAnimation(result.damage);
+        showEffect('damage');
+        triggerScreenShake();
+        showNotification(`💥 Enemies dealt ${result.damage} damage!`);
+      }
+      if (result.pointsStolen && result.pointsStolen > 0) {
+        showNotification(`🔓 Enemy stole ${result.pointsStolen} points!`);
+      }
+      setTimeout(() => {
+        startNewTurn();
+      }, 1200);
     }, 500);
   };
 
